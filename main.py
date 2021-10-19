@@ -1,49 +1,49 @@
-from machine import Pin, PWM
-import utime
-from pulse_u16 import PulseLED
+from simple_rfid import SimpleRFID
+from drivers import PulseLED, Servo, HoldButton
 
-def servo(sm, pos):
-    STEP = 15
-    MAX = 2000000
-    MIN = 1000000
-    if pos == 'MAX' and sm.duty_ns()!=MAX:
-        for i in range(MIN, MAX+STEP, STEP):
-            sm.duty_ns(i)
-    elif pos == 'MIN' and sm.duty_ns()!=MIN:
-        for i in range(MAX+STEP, MIN, -STEP):
-            sm.duty_ns(i)
-
+def save(pause):
+    indicator.change_color('g', 1)
+    res = reader.save(pause)
+    if res == "Add":
+        indicator.blink('g', 3)
+    elif res == "Remove":
+        indicator.blink('b', 3)
+    else:
+        indicator.blink('r', 3)
+    pause()
+        
+def _handler():
+    global flag
+    flag = True
+    
+def pause():
+    next(sm_pause)
+    next(indicator_pause)
+    next(save_button_pause)
     
 
-def save(lista):
-    print('salvando')
-    indicator.change_color('GREEN', 1.5)
-    cards_write = open('./cards.txt', 'w')
-    cards_write.write(','.join(lista))
-    cards_write.close()
-            
-if __name__== '__main__':
-    indicator = PulseLED(18,19,20, 2)
-    sm = PWM(Pin(15))
-    save_bt = Pin(12, Pin.IN,  Pin.PULL_UP)
-    sm.freq(50)              
-    reader = MFRC522(spi_id=0,sck=2,miso=4,mosi=3,cs=1,rst=0)
+flag = False
+sm = Servo(15)
+indicator = PulseLED(18,19,20)
+save_button = HoldButton(5)
+sm_pause = sm.pause()
+indicator_pause = indicator.pause()
+save_button_pause = save_button.pause()
+reader = SimpleRFID()
+indicator.change_color('b', 3)
+save_button.init(1.5, _handler)
 
-    try:
-        while True:
-            uid = read()
-            if not save_bt.value():
-                if uid:
-                    cards.append(read())
-                    save(cards)
-                print(cards)
-            uid = read()
-            if uid in cards:
-                servo(sm, 'MAX')
-            else:
-                servo(sm, 'MIN')
-
-    except KeyboardInterrupt:
-        print("Bye")
-
-
+while True:
+    if flag:
+        save(pause)
+        flag = False
+    auth = reader.auth()
+    if auth == 'Authorized':
+        indicator.change_color('g', 3)
+        sm.open(True)
+    elif auth == 'Not Authorized':
+        indicator.blink('r', 3)
+        sm.open(False)
+    elif not auth:
+        indicator.change_color('b', 3)
+        sm.open(False)
